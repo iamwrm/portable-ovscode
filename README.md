@@ -23,7 +23,7 @@ uvx portable-ovscode [OPTIONS] [-- EXTRA_ARGS]
 |------|---------|-------------|
 | `--install-dir DIR` | `~/.local/share/openvscode-server` | Where to put the binary |
 | `-V, --version` | | Show package version and exit |
-| `--server-version VER` | `1.109.5` | openvscode-server version |
+| `--server-version VER` | latest from GitHub (fallback: `1.109.5`) | openvscode-server version |
 | `--host ADDR` | `127.0.0.1` | Bind address |
 | `--port PORT` | `3000` | Bind port (auto-increments if occupied) |
 | `--token TOKEN` | auto-generated | Connection token |
@@ -83,10 +83,11 @@ No IDE needs to be pre-installed — just open the URL, review diffs, and you're
 ## How It Works
 
 1. Detects platform architecture (x64/arm64).
-2. Downloads the release tarball from GitHub (cached in `--install-dir`).
-3. Generates a random connection token.
-4. Starts `openvscode-server` bound to loopback by default.
-5. Prints the URL with token to stderr.
+2. Resolves openvscode-server version from GitHub latest release API (or falls back to `1.109.5` if lookup fails).
+3. Downloads the release tarball from GitHub (cached in `--install-dir`).
+4. Generates a random connection token.
+5. Starts `openvscode-server` bound to loopback by default.
+6. Prints the URL with token to stderr.
 
 ## License
 

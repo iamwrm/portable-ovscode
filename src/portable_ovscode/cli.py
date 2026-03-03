@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import platform
 import secrets
@@ -19,7 +20,10 @@ GITHUB_RELEASE_URL = (
 )
 from importlib.metadata import version as _pkg_version
 
-LATEST_VERSION = "1.109.5"
+GITHUB_LATEST_RELEASE_API = (
+    "https://api.github.com/repos/gitpod-io/openvscode-server/releases/latest"
+)
+FALLBACK_SERVER_VERSION = "1.109.5"
 PKG_VERSION = _pkg_version("portable-ovscode")
 
 SUPPORTED_PLATFORMS = {"linux"}
@@ -105,6 +109,42 @@ def install(install_dir: str, version: str) -> str:
     return binary
 
 
+def fetch_latest_server_version(timeout_sec: float = 3.0) -> str:
+    """Fetch latest openvscode-server version from GitHub API."""
+    req = urllib.request.Request(
+        GITHUB_LATEST_RELEASE_API,
+        headers={"Accept": "application/vnd.github+json"},
+    )
+    with urllib.request.urlopen(req, timeout=timeout_sec) as resp:
+        payload = json.load(resp)
+
+    tag_name = payload.get("tag_name")
+    prefix = "openvscode-server-v"
+    if not isinstance(tag_name, str) or not tag_name.startswith(prefix):
+        raise RuntimeError("invalid release tag_name from GitHub API")
+
+    version = tag_name[len(prefix):]
+    if not version:
+        raise RuntimeError("empty version from GitHub API tag_name")
+    return version
+
+
+def resolve_server_version(user_supplied_version: str | None) -> str:
+    """Resolve version from CLI input or GitHub latest with fallback."""
+    if user_supplied_version:
+        return user_supplied_version
+
+    try:
+        return fetch_latest_server_version()
+    except Exception as exc:
+        print(
+            "[portable-ovscode] WARNING: latest version lookup failed "
+            f"({exc}); using fallback {FALLBACK_SERVER_VERSION}",
+            file=sys.stderr,
+        )
+        return FALLBACK_SERVER_VERSION
+
+
 def generate_self_signed_cert(cert_dir: str, host: str) -> tuple[str, str]:
     """Generate a self-signed certificate. Returns (cert_path, key_path)."""
     cert_path = os.path.join(cert_dir, "cert.pem")
@@ -180,8 +220,11 @@ def main() -> None:
     )
     parser.add_argument(
         "--server-version",
-        default=LATEST_VERSION,
-        help=f"openvscode-server version (default: {LATEST_VERSION})",
+        default=None,
+        help=(
+            "openvscode-server version (default: latest from GitHub; "
+            f"fallback: {FALLBACK_SERVER_VERSION})"
+        ),
     )
     parser.add_argument(
         "--host",
@@ -233,7 +276,8 @@ def main() -> None:
 
     check_platform()
 
-    binary = install(args.install_dir, args.server_version)
+    server_version = resolve_server_version(args.server_version)
+    binary = install(args.install_dir, server_version)
 
     if args.install_only:
         print(binary)
